@@ -1,0 +1,22 @@
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
+
+body {
+  background: #010102; /* canvas —— 暗色画布即留白 */
+  color: #f7f8f8;
+  font-family: Inter, -apple-system, system-ui, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 暗色滚动条 */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: #010102; }
+::-webkit-scrollbar-thumb { background: #23252a; border-radius: 6px; }
+::-webkit-scrollbar-thumb:hover { background: #2e3036; }
+
+/* 数字 / 指标值 / ID 统一用 Mono（设计规范要求） */
+.mono {
+  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+}
