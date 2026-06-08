@@ -4,7 +4,7 @@ import {
   Upload as AntUpload, Card, Button, Input, DatePicker, Space,
   Spin, Select, Divider, Table, App, Collapse, Tabs,
 } from 'antd';
-import { InboxOutlined, RobotOutlined, CheckOutlined, EditOutlined } from '@ant-design/icons';
+import { InboxOutlined, CheckOutlined, EditOutlined } from '@ant-design/icons';
 import type { Dayjs } from 'dayjs';
 import { api } from '../api/client';
 import type { MetricItem, Direction } from '../types';
@@ -12,7 +12,7 @@ import { COLOR, SPACE, FONT } from '../theme/tokens';
 
 const { Dragger } = AntUpload;
 
-type Step = 'upload' | 'extract' | 'confirm';
+type Step = 'upload' | 'confirm';
 
 // 步骤编号圆圈：active = primary 填充，done = surface-3 + inkSubtle
 function StepBadge({ n, active }: { n: number; active: boolean }) {
@@ -159,7 +159,6 @@ function PdfUploadTab() {
   const [pdfPath, setPdfPath] = useState('');
   const [markdown, setMarkdown] = useState('');
   const [uploading, setUploading] = useState(false);
-  const [extracting, setExtracting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const [metrics, setMetrics] = useState<MetricItem[]>([]);
@@ -177,10 +176,18 @@ function PdfUploadTab() {
         const res = await api.uploadPdf(opt.file as File);
         setPdfPath(res.pdf_path);
         setMarkdown(res.markdown);
-        setReportName((opt.file as File).name.replace(/\.pdf$/i, ''));
-        setStep('extract');
+        const name = (opt.file as File).name.replace(/\.pdf$/i, '');
+        setReportName(name);
         opt.onSuccess?.(res);
-        message.success('PDF 解析完成，点击「AI 识别指标」继续');
+        // 上传完成后自动调脚本提取，提取结果直接进入核对步骤
+        const extracted = await api.extractMetrics(res.markdown, bizTag || undefined);
+        setMetrics(extracted.metrics);
+        setStep('confirm');
+        message.success(
+          extracted.metrics.length > 0
+            ? `自动提取到 ${extracted.metrics.length} 个指标，请核对后入库`
+            : 'PDF 解析完成，请手动填写指标后入库'
+        );
       } catch {
         opt.onError?.('上传失败');
         message.error('上传失败，请确认后端已启动');
@@ -188,20 +195,6 @@ function PdfUploadTab() {
         setUploading(false);
       }
     },
-  };
-
-  const handleExtract = async () => {
-    setExtracting(true);
-    try {
-      const res = await api.extractMetrics(markdown, bizTag || undefined);
-      setMetrics(res.metrics);
-      setStep('confirm');
-      message.success(`AI 识别出 ${res.metrics.length} 个指标，请核对后入库`);
-    } catch {
-      message.error('AI 识别失败，请检查后端配置');
-    } finally {
-      setExtracting(false);
-    }
   };
 
   const handleConfirm = async () => {
@@ -260,38 +253,6 @@ function PdfUploadTab() {
       </Card>
 
       {/* Step 2 */}
-      {(step === 'extract' || step === 'confirm') && (
-        <Card style={{ marginBottom: SPACE.lg }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: SPACE.sm, marginBottom: SPACE.md }}>
-            <StepBadge n={2} active={step === 'extract'} />
-            <span style={{ fontWeight: 500, color: COLOR.ink }}>AI 识别指标</span>
-          </div>
-          <div style={{ marginBottom: SPACE.md }}>
-            <label style={{ color: COLOR.inkMuted, fontSize: 12, marginBottom: 6, display: 'block' }}>
-              业务线（帮助 AI 更准确识别）
-            </label>
-            <Input style={{ width: 240 }} value={bizTag} onChange={(e) => setBizTag(e.target.value)} placeholder="如：海外搜索 / 对话质量" />
-          </div>
-          <Collapse ghost style={{ marginBottom: SPACE.md }}
-            items={[{
-              key: 'md',
-              label: <span style={{ color: COLOR.inkSubtle, fontSize: 12 }}>预览 Markdown（{markdown.length} 字符）</span>,
-              children: (
-                <pre style={{ fontSize: 11, color: COLOR.inkMuted, maxHeight: 280, overflow: 'auto', background: COLOR.surface2, padding: SPACE.sm, borderRadius: 8 }}>
-                  {markdown.slice(0, 3000)}{markdown.length > 3000 ? '\n…（已截断）' : ''}
-                </pre>
-              ),
-            }]}
-          />
-          {step === 'extract' ? (
-            <Button type="primary" icon={<RobotOutlined />} loading={extracting} onClick={handleExtract}>AI 识别指标</Button>
-          ) : (
-            <div style={{ color: COLOR.success, fontSize: 13 }}>✓ 已识别 {metrics.length} 个指标，请核对</div>
-          )}
-        </Card>
-      )}
-
-      {/* Step 3 */}
       {step === 'confirm' && (
         <Card>
           <div style={{ display: 'flex', alignItems: 'center', gap: SPACE.sm, marginBottom: SPACE.md }}>
