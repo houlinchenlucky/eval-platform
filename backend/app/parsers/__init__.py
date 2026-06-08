@@ -21,7 +21,7 @@ _PARSERS: dict[str, str] = {
 }
 
 
-def extract_metrics(markdown: str, business_tag: str | None = None) -> list[dict[str, Any]]:
+def extract_metrics(pdf_path: str, business_tag: str | None = None) -> list[dict[str, Any]]:
     """
     根据 business_tag 分发到对应的脚本解析器。
 
@@ -45,7 +45,7 @@ def extract_metrics(markdown: str, business_tag: str | None = None) -> list[dict
 
     try:
         mod = importlib.import_module(f"app.parsers.{module_name}")
-        return mod.parse(markdown)
+        return mod.parse(pdf_path)
     except Exception as exc:
         # 解析器出错不影响主流程，记录后返回空
         import logging

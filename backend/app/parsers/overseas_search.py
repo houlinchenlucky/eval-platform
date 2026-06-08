@@ -15,6 +15,6 @@ from __future__ import annotations
 from typing import Any
 
 
-def parse(markdown: str) -> list[dict[str, Any]]:
+def parse(pdf_path: str) -> list[dict[str, Any]]:
     # TODO: 实现海外搜索报告的脚本解析逻辑
     raise NotImplementedError("海外搜索解析器尚未实现")

@@ -101,7 +101,7 @@ class MetricItem(BaseModel):
 
 
 class ExtractRequest(BaseModel):
-    markdown: str
+    pdf_path: str
     business_tag: Optional[str] = None
 
 

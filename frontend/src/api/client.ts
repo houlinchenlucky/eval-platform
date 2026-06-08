@@ -37,8 +37,8 @@ export const api = {
     fd.append('file', file);
     return http.post<PdfUploadResp>('/reports/upload-pdf', fd, { timeout: 120000 }).then((r) => r.data);
   },
-  extractMetrics: (markdown: string, businessTag?: string) =>
-    http.post<ExtractResp>('/reports/extract', { markdown, business_tag: businessTag }, { timeout: 120000 })
+  extractMetrics: (pdfPath: string, businessTag?: string) =>
+    http.post<ExtractResp>('/reports/extract', { pdf_path: pdfPath, business_tag: businessTag }, { timeout: 120000 })
       .then((r) => r.data),
   confirmReport: (body: ConfirmBody) =>
     http.post<ReportListItem>('/reports/confirm', body).then((r) => r.data),

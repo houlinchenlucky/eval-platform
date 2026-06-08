@@ -180,7 +180,7 @@ function PdfUploadTab() {
         setReportName(name);
         opt.onSuccess?.(res);
         // 上传完成后自动调脚本提取，提取结果直接进入核对步骤
-        const extracted = await api.extractMetrics(res.markdown, bizTag || undefined);
+        const extracted = await api.extractMetrics(res.pdf_path, bizTag || undefined);
         setMetrics(extracted.metrics);
         setStep('confirm');
         message.success(

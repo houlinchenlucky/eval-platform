@@ -10,6 +10,6 @@ from typing import Any
 from app.parsers import extract_metrics as _dispatch
 
 
-def extract_metrics(markdown: str, business_tag: str | None = None) -> list[dict[str, Any]]:
+def extract_metrics(pdf_path: str, business_tag: str | None = None) -> list[dict[str, Any]]:
     """分发到 parsers/ 下对应的业务线解析器。"""
-    return _dispatch(markdown, business_tag)
+    return _dispatch(pdf_path, business_tag)

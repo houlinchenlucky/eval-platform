@@ -166,7 +166,7 @@ async def upload_pdf(file: UploadFile = File(...)) -> PdfUploadOut:
 @router.post("/extract", response_model=ExtractOut)
 def extract_report_metrics(payload: ExtractRequest) -> ExtractOut:
     try:
-        metrics = extract_metrics(payload.markdown, payload.business_tag)
+        metrics = extract_metrics(payload.pdf_path, payload.business_tag)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"AI 抽取失败: {exc}") from exc
     items = [
