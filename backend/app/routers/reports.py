@@ -69,6 +69,24 @@ def _model_dump(model: Any) -> dict:
     return model.dict()
 
 
+def _is_within_upload_dir(path: str) -> bool:
+    """校验路径是否落在 UPLOAD_DIR 内，防止路径穿越/任意文件读取。"""
+    if not path:
+        return False
+    upload_root = os.path.realpath(UPLOAD_DIR)
+    target = os.path.realpath(path)
+    return target == upload_root or target.startswith(upload_root + os.sep)
+
+
+def _validate_pdf_path(path: str | None) -> str | None:
+    """确认入库/抽取时校验客户端传入的 pdf_path；非法则拒绝。"""
+    if path is None or path == "":
+        return None
+    if not _is_within_upload_dir(path):
+        raise HTTPException(status_code=400, detail="非法的 pdf_path")
+    return path
+
+
 def _safe_filename(filename: str) -> str:
     basename = os.path.basename(filename or "report")
     name, ext = os.path.splitext(basename)
@@ -103,12 +121,18 @@ def _get_prev_value(db: Session, report: Report, metric_name: str) -> float | No
     ).scalar_one_or_none()
     if prev_report is None:
         return None
-    pt = db.execute(
-        select(MetricPoint.metric_value)
+    pts = db.execute(
+        select(MetricPoint)
         .where(MetricPoint.report_id == prev_report.id, MetricPoint.metric_name == metric_name)
-        .limit(1)
-    ).scalar_one_or_none()
-    return float(pt) if pt is not None else None
+        .order_by(MetricPoint.row_index)
+    ).scalars().all()
+    # 只取一维指标的上期值，跳过交叉表格子（与一维指标共用 metric_name）
+    for pt in pts:
+        dims = pt.dimensions or {}
+        if dims.get("cross_row") or dims.get("cross_col"):
+            continue
+        return float(pt.metric_value)
+    return None
 
 
 def _get_prev_cross_value(
@@ -165,6 +189,7 @@ async def upload_pdf(file: UploadFile = File(...)) -> PdfUploadOut:
 
 @router.post("/extract", response_model=ExtractOut)
 def extract_report_metrics(payload: ExtractRequest) -> ExtractOut:
+    _validate_pdf_path(payload.pdf_path)
     try:
         metrics = extract_metrics(payload.pdf_path, payload.business_tag)
     except Exception as exc:
@@ -189,11 +214,12 @@ def extract_report_metrics(payload: ExtractRequest) -> ExtractOut:
 def confirm_report(payload: ConfirmRequest, db: Session = Depends(get_db)) -> ReportOut:
     uploaded_at = datetime.now()
     report_date = parse_report_date(payload.report_date) if payload.report_date else uploaded_at.date()
+    pdf_path = _validate_pdf_path(payload.pdf_path)
 
     report = Report(
         name=payload.name,
         business_tag=payload.business_tag,
-        pdf_path=payload.pdf_path,
+        pdf_path=pdf_path,
         markdown_content=payload.markdown,
         status="confirmed",
         report_date=report_date,
@@ -254,8 +280,11 @@ def get_trend(
     direction = "higher_better"
     points: list[TrendPoint] = []
     for rid, name, rdate, val, dims in rows:
-        if dims:
-            direction = dims.get("direction", direction)
+        dims = dims or {}
+        # 跳过交叉表格子，避免一份报告出现多个同名点污染趋势
+        if dims.get("cross_row") or dims.get("cross_col"):
+            continue
+        direction = dims.get("direction", direction)
         points.append(TrendPoint(
             report_id=rid, report_name=name,
             report_date=rdate.isoformat() if rdate else None,
@@ -583,7 +612,12 @@ def get_report(report_id: int, db: Session = Depends(get_db)) -> ReportDetailOut
 @router.get("/{report_id}/pdf")
 def get_pdf(report_id: int, db: Session = Depends(get_db)) -> FileResponse:
     report = db.get(Report, report_id)
-    if report is None or not report.pdf_path or not os.path.exists(report.pdf_path):
+    if (
+        report is None
+        or not report.pdf_path
+        or not _is_within_upload_dir(report.pdf_path)
+        or not os.path.exists(report.pdf_path)
+    ):
         raise HTTPException(status_code=404, detail="PDF 文件不存在")
     return FileResponse(report.pdf_path, media_type="application/pdf",
                         filename=os.path.basename(report.pdf_path))

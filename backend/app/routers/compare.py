@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -27,12 +27,13 @@ def _parse_report_ids(raw: str) -> list[int]:
     return ids
 
 
-def _direction_for_report(report: Report, metric: str) -> str:
+def _direction_from_template(report: Report, metric: str) -> str | None:
+    """旧流程回退：从模板配置读方向；新流程报告没有模板，返回 None。"""
     mapping = report.template.column_mapping if report.template else {}
-    direction = (mapping.get("metric_directions") or {}).get(metric, "higher_better")
-    if direction not in {"higher_better", "lower_better"}:
-        return "higher_better"
-    return direction
+    direction = (mapping.get("metric_directions") or {}).get(metric)
+    if direction in {"higher_better", "lower_better"}:
+        return direction
+    return None
 
 
 @router.get("/compare", response_model=CompareOut)
@@ -48,12 +49,24 @@ def compare_reports(
     if missing:
         raise HTTPException(status_code=404, detail=f"报告不存在: {', '.join(missing)}")
 
-    value_rows = db.execute(
-        select(MetricPoint.report_id, func.avg(MetricPoint.metric_value))
+    pts = db.execute(
+        select(MetricPoint)
         .where(MetricPoint.report_id.in_(ids), MetricPoint.metric_name == metric)
-        .group_by(MetricPoint.report_id)
-    ).all()
-    values_by_report_id = {int(report_id): float(value) for report_id, value in value_rows}
+        .order_by(MetricPoint.row_index)
+    ).scalars().all()
+
+    # 一维指标值与方向都取自 MetricPoint.dimensions；交叉格与一维指标共用
+    # metric_name，必须跳过，否则取值/方向都会被污染
+    values_by_report_id: dict[int, float] = {}
+    direction: str | None = None
+    for pt in pts:
+        dims = pt.dimensions or {}
+        if dims.get("cross_row") or dims.get("cross_col"):
+            continue
+        if pt.report_id not in values_by_report_id:
+            values_by_report_id[pt.report_id] = float(pt.metric_value)
+        if direction is None and dims.get("direction") in {"higher_better", "lower_better"}:
+            direction = dims["direction"]
 
     table_rows: list[CompareTableRow] = []
     for report_id in ids:
@@ -71,20 +84,20 @@ def compare_reports(
 
     table_rows.sort(key=lambda row: (row.report_date or "", row.report_name, row.report_id))
     if not table_rows:
-        direction = "higher_better"
         return CompareOut(
             metric=metric,
-            direction=direction,
+            direction=direction or "higher_better",
             trend=CompareTrend(x=[], y=[]),
             table=[],
             highlight=CompareHighlight(max_report_id=None, min_report_id=None),
         )
 
-    direction = "higher_better"
-    for row in table_rows:
-        direction = _direction_for_report(reports_by_id[row.report_id], metric)
-        if direction:
-            break
+    if direction is None:
+        for row in table_rows:
+            direction = _direction_from_template(reports_by_id[row.report_id], metric)
+            if direction:
+                break
+    direction = direction or "higher_better"
 
     max_row = max(table_rows, key=lambda row: row.value)
     min_row = min(table_rows, key=lambda row: row.value)
