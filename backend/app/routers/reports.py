@@ -201,6 +201,8 @@ def extract_report_metrics(payload: ExtractRequest) -> ExtractOut:
             direction=m.get("direction", "higher_better"),
             group=m.get("group", "整体指标"),
             prev_value=m.get("prev_value"),
+            cross_row=m.get("cross_row"),
+            cross_col=m.get("cross_col"),
         )
         for m in metrics
         if m.get("name")

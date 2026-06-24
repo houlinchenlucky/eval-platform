@@ -159,12 +159,31 @@ function PdfUploadTab() {
   const [pdfPath, setPdfPath] = useState('');
   const [markdown, setMarkdown] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [extracting, setExtracting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const [metrics, setMetrics] = useState<MetricItem[]>([]);
   const [reportName, setReportName] = useState('');
   const [bizTag, setBizTag] = useState('');
   const [reportDate, setReportDate] = useState<Dayjs | null>(null);
+
+  const runExtract = async (path: string, tag: string) => {
+    if (!path) return;
+    setExtracting(true);
+    try {
+      const extracted = await api.extractMetrics(path, tag || undefined);
+      setMetrics(extracted.metrics);
+      message.success(
+        extracted.metrics.length > 0
+          ? `自动提取到 ${extracted.metrics.length} 个指标，请核对后入库`
+          : '未找到匹配的解析脚本，请手动填写指标后入库',
+      );
+    } catch {
+      message.error('自动识别失败，请手动填写');
+    } finally {
+      setExtracting(false);
+    }
+  };
 
   const draggerProps = {
     multiple: false,
@@ -179,15 +198,9 @@ function PdfUploadTab() {
         const name = (opt.file as File).name.replace(/\.pdf$/i, '');
         setReportName(name);
         opt.onSuccess?.(res);
-        // 上传完成后自动调脚本提取，提取结果直接进入核对步骤
-        const extracted = await api.extractMetrics(res.pdf_path, bizTag || undefined);
-        setMetrics(extracted.metrics);
+        // 上传完成后只进入核对步骤；识别由用户在 Step 2 点击「自动识别」触发
         setStep('confirm');
-        message.success(
-          extracted.metrics.length > 0
-            ? `自动提取到 ${extracted.metrics.length} 个指标，请核对后入库`
-            : 'PDF 解析完成，请手动填写指标后入库'
-        );
+        message.info('PDF 解析完成，请填写业务线后点击「自动识别」');
       } catch {
         opt.onError?.('上传失败');
         message.error('上传失败，请确认后端已启动');
@@ -227,6 +240,7 @@ function PdfUploadTab() {
           <StepBadge n={1} active={step === 'upload'} />
           <span style={{ fontWeight: 500, color: COLOR.ink }}>上传 PDF 报告</span>
         </div>
+
         <Dragger
           {...draggerProps}
           disabled={step !== 'upload' && !uploading}
@@ -236,9 +250,12 @@ function PdfUploadTab() {
             borderRadius: 12,
           }}
         >
-          {uploading ? (
+          {uploading || extracting ? (
             <div style={{ padding: SPACE.lg }}>
-              <Spin /><div style={{ color: COLOR.inkMuted, marginTop: SPACE.sm }}>解析中…</div>
+              <Spin />
+              <div style={{ color: COLOR.inkMuted, marginTop: SPACE.sm }}>
+                {uploading ? '解析 PDF…' : '自动识别指标…'}
+              </div>
             </div>
           ) : (
             <>
@@ -256,13 +273,42 @@ function PdfUploadTab() {
       {step === 'confirm' && (
         <Card>
           <div style={{ display: 'flex', alignItems: 'center', gap: SPACE.sm, marginBottom: SPACE.md }}>
-            <StepBadge n={3} active={true} />
+            <StepBadge n={2} active={true} />
             <span style={{ fontWeight: 500, color: COLOR.ink }}>核对指标 · 确认入库</span>
           </div>
           <ReportMeta
             name={reportName} bizTag={bizTag} reportDate={reportDate}
             onChangeName={setReportName} onChangeBizTag={setBizTag} onChangeDate={setReportDate}
           />
+          <div style={{
+            marginBottom: SPACE.md,
+            padding: `${SPACE.sm}px ${SPACE.md}px`,
+            background: COLOR.surface2,
+            borderRadius: 8,
+            display: 'flex',
+            alignItems: 'center',
+            gap: SPACE.sm,
+            flexWrap: 'wrap',
+          }}>
+            {metrics.length > 0 ? (
+              <span style={{ fontSize: 13, color: COLOR.inkMuted, flex: 1 }}>
+                已识别 {metrics.length} 个指标，可直接核对入库，或重新识别覆盖
+              </span>
+            ) : (
+              <span style={{ fontSize: 13, color: COLOR.inkMuted, flex: 1 }}>
+                填写业务线后点击「自动识别」，或直接手动添加指标
+              </span>
+            )}
+            <Button
+              type={metrics.length === 0 ? 'primary' : 'default'}
+              size="small"
+              loading={extracting}
+              disabled={!bizTag}
+              onClick={() => runExtract(pdfPath, bizTag)}
+            >
+              {metrics.length === 0 ? '自动识别指标' : '重新识别'}
+            </Button>
+          </div>
           <MetricEditor metrics={metrics} onChange={setMetrics} />
           <Divider />
           <Space>

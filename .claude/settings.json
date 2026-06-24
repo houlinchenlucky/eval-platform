@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -m venv .venv)",
+      "Bash(.venv/bin/pip install *)",
+      "Bash(.venv/bin/python -c \"import pdfplumber, fastapi, reportlab, pandas; print\\('all ok'\\)\")",
+      "Bash(curl -sS -m 15 -o /dev/null -w \"HTTP状态: %{http_code}  连接耗时: %{time_connect}s  总耗时: %{time_total}s\\\\n\" https://github.com)",
+      "Bash(GIT_TERMINAL_PROMPT=0 timeout 25 git ls-remote origin -h)",
+      "Bash(echo \"退出码: $?\")",
+      "Bash(kill 96880)"
+    ]
+  }
+}

@@ -13,12 +13,12 @@ __pycache__/
 .venv/
 venv/
 *.egg-info/
-dist/
+backend/dist/
 build/
 
 # ── Node / 前端 ───────────────────────────────────────────────────────────────
 node_modules/
-frontend/dist/
+# frontend/dist/ 不忽略，构建产物提交进仓库，团队成员无需安装 Node.js
 
 # ── 示例数据与生成脚本（业务线名敏感）────────────────────────────────────────
 backend/sample_data/

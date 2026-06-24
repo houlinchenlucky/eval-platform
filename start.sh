@@ -1,35 +1,42 @@
 #!/bin/bash
-# 一键启动评测报告可视化平台（前端 :3000 + 后端 :8000）
+# 启动评测报告平台（单进程，生产模式）
+# 用法：./start.sh [端口，默认 8000]
 set -e
 cd "$(dirname "$0")"
 ROOT="$(pwd)"
+PORT="${1:-8000}"
 
-echo "▶ 准备后端..."
-cd "$ROOT/backend"
-if [ ! -d ".venv" ]; then
-  python3 -m venv .venv
+# ── 检查 venv ─────────────────────────────────────────────────────────────────
+if [ ! -d "$ROOT/backend/.venv" ]; then
+  echo "❌ 未找到 Python 环境，请先运行：./setup.sh"
+  exit 1
 fi
-source .venv/bin/activate
-pip install -q -r requirements.txt
-echo "▶ 启动后端 (http://localhost:8000)"
-uvicorn app.main:app --reload --port 8000 &
-BACKEND_PID=$!
 
-echo "▶ 准备前端..."
-cd "$ROOT/frontend"
-if [ ! -d "node_modules" ]; then
-  npm install
+# ── 检查前端构建产物 ──────────────────────────────────────────────────────────
+if [ ! -d "$ROOT/frontend/dist" ]; then
+  echo "⚙️  未找到前端构建文件，正在构建..."
+  cd "$ROOT/frontend"
+  if ! command -v npm &>/dev/null; then
+    echo "❌ 需要 Node.js 来构建前端，请先安装 Node.js 或运行 ./setup.sh"
+    exit 1
+  fi
+  npm install -q && npm run build
+  cd "$ROOT"
 fi
-echo "▶ 启动前端 (http://localhost:3000)"
-npm run dev &
-FRONTEND_PID=$!
+
+# ── 启动后端（兼顾 API + 静态前端）──────────────────────────────────────────
+source "$ROOT/backend/.venv/bin/activate"
 
 echo ""
 echo "======================================================"
-echo "  ✅ 后端 API : http://localhost:8000   (接口文档 /docs)"
-echo "  ✅ 前端界面 : http://localhost:3000"
-echo "  按 Ctrl+C 停止全部服务"
+echo "  启动评测报告平台..."
+echo "  地址：http://localhost:$PORT"
+echo "  按 Ctrl+C 停止"
 echo "======================================================"
+echo ""
 
-trap "echo; echo '正在停止...'; kill $BACKEND_PID $FRONTEND_PID 2>/dev/null" EXIT
-wait
+# 稍等一秒再打开浏览器，等服务器就绪
+(sleep 1.5 && open "http://localhost:$PORT" 2>/dev/null || true) &
+
+cd "$ROOT/backend"
+exec uvicorn app.main:app --host 0.0.0.0 --port "$PORT" --workers 1

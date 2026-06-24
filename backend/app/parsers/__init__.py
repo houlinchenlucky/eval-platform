@@ -16,7 +16,7 @@ from typing import Any
 # ── 注册表：业务线 → 解析器模块名（相对于 parsers 包）────────────────────────
 # 示例：{"海外搜索": "overseas_search"}
 _PARSERS: dict[str, str] = {
-    # TODO: 在这里注册各业务线的解析器
+    "内容理解": "content_understanding",
     # "海外搜索": "overseas_search",
 }
 

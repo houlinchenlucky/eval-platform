@@ -1,45 +1,73 @@
 # 评测报告可视化与回溯平台
 
-本地部署的轻量 Web 工具：上传 Excel/CSV 评测报告 → 自动可视化 → 按时间回溯对比。
-界面采用 **Linear 暗色设计风格**（详见 [`设计规范.md`](设计规范.md)）。
+本地部署的轻量 Web 工具：上传 PDF / 手动录入评测报告 → 自动可视化 → 按时间跨期回溯对比。
+界面采用 Linear 暗色设计风格。
 
-## 它能做什么
+---
 
-1. **上传报告**：拖入 Excel/CSV，第一次配置一次「字段映射」（哪列是日期、哪些是指标），存成模板，之后同类报告自动套用。
-2. **单份可视化**：每份报告自动生成指标柱状图 + 原始数据表。
-3. **时间回溯**：勾选多份报告，按时间看任意指标的趋势折线，并横向对比（自动高亮最优/最差）。
+## 功能截图
 
-## 架构（混合型）
+### 评测看板
+总览所有业务线的最新指标、报告列表与趋势摘要。
 
-- **上层模板映射**：套用模板识别报告结构，省心接入各种格式。
-- **底层时序存储**：把每份报告打散成 `(时间, 指标, 数值, 维度)` 记录，所以能跨报告拉出任意指标的历史曲线。
+![评测看板](docs/screenshots/01_dashboard.png)
 
-```
-eval-platform/
-├── backend/                FastAPI + SQLite + pandas
-│   ├── app/                核心：模型 / 解析 / 路由
-│   ├── scripts/            示例数据生成脚本
-│   ├── sample_data/        已生成的示例评测报告（4 周 × Excel/CSV）
-│   └── requirements.txt
-├── frontend/               React + TS + Vite + Ant Design 5 + ECharts
-│   └── src/
-│       ├── theme/          设计规范落地（暗色主题 + 图表配色）
-│       ├── pages/          总览 / 上传 / 详情 / 对比
-│       └── components/     统计卡 / 柱状图 / 趋势图
-├── 设计规范.md             UI 设计唯一依据（Linear 暗色风格）
-└── start.sh                一键启动
-```
+---
+
+### 报告详情
+自动将指标拆分为「整体指标大数字卡片 + 分组横条图」，附带与上期的差值对比（绿色↑改善 / 红色↓劣化）。
+
+![报告详情](docs/screenshots/03_report_detail.png)
+
+---
+
+### 上传报告 — PDF 智能识别
+拖入 PDF 即自动解析为 Markdown，结合业务线脚本自动提取指标，人工核对后一键入库。
+
+![PDF上传](docs/screenshots/04_upload_pdf.png)
+
+---
+
+### 多维回溯 — 横向对比表
+选定业务线后，所有历史期次的全量指标排成矩阵，每列自动计算与上期的差值并标色。
+
+![横向对比表](docs/screenshots/06_compare_matrix.png)
+
+---
+
+### 多维回溯 — 多指标趋势
+勾选任意指标，拉出跨期折线图，直观看出哪个指标在向好、哪个在恶化。
+
+![多指标趋势](docs/screenshots/07_compare_trend.png)
+
+---
+
+## 核心功能
+
+| 功能 | 说明 |
+|---|---|
+| PDF 上传 + AI 识别 | 拖入 PDF → 自动转 Markdown → 按业务线脚本提取指标 |
+| 手动录入 | 补录历史数据或无 PDF 的评测结论 |
+| 报告详情 | 大数字卡片 + 分组横条图 + 上期差值标色 |
+| 横向对比表 | 指标 × 期次矩阵，自动算相邻期差值 |
+| 多指标趋势 | 自定义勾选指标看跨期折线图 |
+| 结构变化视图 | 选定分组，查看该组内各指标的跨期演变 |
+| 交叉热力图 | 行 × 列维度的指标分布热力图，支持按期次切换 |
+| 业务线筛选 | 看板和回溯页均可按业务线过滤 |
+| 删除报告 | 支持从列表或详情页删除，二次确认防误删 |
+
+---
 
 ## 快速开始
 
 ```bash
-# 一键启动（自动建 venv、装依赖、起前后端）
+# 一键启动（自动建 venv、构建前端、起服务）
 ./start.sh
 ```
 
-启动后访问 **http://localhost:3000**（后端接口文档在 http://localhost:8000/docs）。
+启动后浏览器自动打开 **http://localhost:8000**。
 
-### 手动启动
+### 手动启动（开发模式）
 
 ```bash
 # 后端
@@ -51,27 +79,35 @@ uvicorn app.main:app --reload --port 8000
 # 前端（另开一个终端）
 cd frontend
 npm install
-npm run dev
+npm run dev   # http://localhost:3000
 ```
 
-## 试用示例数据
+---
 
-`backend/sample_data/` 下已有 4 周的示例报告（点击率/转化率/综合分逐周上升、错误率逐周下降），可直接用来体验：
+## 项目结构
 
-1. 在「上传报告」页依次上传这 4 份 `评测报告_2026-05-*.xlsx`
-2. 首次上传时新建模板：
-   - 日期列 → `日期`
-   - 指标列 → `点击率`、`转化率`、`综合分`、`错误率`
-   - 维度列 → `广告位`；备注列 → `备注`
-   - 给 `错误率` 设为「越低越好」，其余「越高越好」
-3. 到「时间对比」页勾选 4 份报告，切换指标看趋势
+```
+eval-platform/
+├── backend/                FastAPI + SQLite + pandas
+│   ├── app/
+│   │   ├── parsers/        各业务线 PDF 解析脚本
+│   │   └── routers/        API 路由（报告 / 模板 / 对比）
+│   ├── scripts/            示例数据生成脚本
+│   └── requirements.txt
+├── frontend/               React + TypeScript + Vite + Ant Design 5 + ECharts
+│   └── src/
+│       ├── pages/          看板 / 上传 / 详情 / 多维回溯
+│       └── components/     StatCard / GroupBarChart / TrendLineChart / CrossHeatmap
+├── docs/screenshots/       README 截图
+└── start.sh                一键启动
+```
 
-> 如需重新生成示例数据：`cd backend && python scripts/gen_sample_reports.py`
+---
 
 ## 技术栈
 
 | 层 | 技术 |
-|----|------|
+|---|---|
 | 前端 | React 18 · TypeScript · Vite · Ant Design 5（暗色）· ECharts |
 | 后端 | FastAPI · SQLAlchemy · SQLite · pandas |
 | 字体 | Inter + JetBrains Mono |
